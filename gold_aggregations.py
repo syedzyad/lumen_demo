@@ -16,6 +16,7 @@
 # MAGIC | agg_regional_summary | Regional performance with manager attribution |
 # MAGIC | agg_category_trends | Quarterly category-level trends |
 # MAGIC | agg_shipping_analysis | Shipping mode efficiency and cost metrics |
+# MAGIC | agg_state_performance | State-level sales performance and profitability |
 
 # COMMAND ----------
 
@@ -316,6 +317,48 @@ agg_shipping_analysis = (
 agg_shipping_analysis.write.mode("overwrite").saveAsTable("dev_gold.reporting.agg_shipping_analysis")
 print(f"agg_shipping_analysis: {agg_shipping_analysis.count()} rows")
 agg_shipping_analysis.show(truncate=False)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### agg_state_performance
+# MAGIC State-level sales performance: revenue, profit, customer density, avg order size
+
+# COMMAND ----------
+
+agg_state_performance = (
+    fact_sales
+    .join(dim_geography, "geography_key", "left")
+    .join(dim_date, fact_sales.order_date_key == dim_date.date_key, "left")
+    .groupBy("country", "state", "region")
+    .agg(
+        F.sum("revenue").alias("total_revenue"),
+        F.sum("profit").alias("total_profit"),
+        F.sum("cost").alias("total_cost"),
+        F.countDistinct("order_id").alias("total_orders"),
+        F.countDistinct("customer_key").alias("total_customers"),
+        F.sum("quantity").alias("total_units_sold"),
+        F.avg("profit_margin").alias("avg_profit_margin"),
+        F.avg("discount").alias("avg_discount"),
+        F.min("date").alias("first_order_date"),
+        F.max("date").alias("last_order_date")
+    )
+    .withColumn("revenue_per_customer", F.col("total_revenue") / F.col("total_customers"))
+    .withColumn("orders_per_customer", F.col("total_orders") / F.col("total_customers"))
+    .withColumn("avg_order_value", F.col("total_revenue") / F.col("total_orders"))
+    .withColumn("profit_to_cost_ratio",
+        F.when(F.col("total_cost") > 0, F.col("total_profit") / F.col("total_cost"))
+         .otherwise(0)
+    )
+    .withColumn("state_revenue_rank",
+        F.rank().over(Window.orderBy(F.desc("total_revenue")))
+    )
+    .orderBy(F.desc("total_revenue"))
+)
+
+agg_state_performance.write.mode("overwrite").saveAsTable("dev_gold.reporting.agg_state_performance")
+print(f"agg_state_performance: {agg_state_performance.count()} rows")
+agg_state_performance.show(10, truncate=False)
 
 # COMMAND ----------
 

@@ -37,6 +37,11 @@ spark.sql("USE SCHEMA star_schema")
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC -- select * from silver table 
+
+# COMMAND ----------
+
 df_orders = spark.table("dev_bronze.raw.orders")
 df_people = spark.table("dev_bronze.raw.people")
 df_returns = spark.table("dev_bronze.raw.returns")

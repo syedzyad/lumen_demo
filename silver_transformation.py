@@ -37,11 +37,6 @@ spark.sql("USE SCHEMA star_schema")
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC -- select * from silver table 
-
-# COMMAND ----------
-
 df_orders = spark.table("dev_bronze.raw.orders")
 df_people = spark.table("dev_bronze.raw.people")
 df_returns = spark.table("dev_bronze.raw.returns")
@@ -68,7 +63,7 @@ from pyspark.sql.window import Window
 df_dim_customer = (
     df_orders
     .select(
-        F.col("customer_id"),
+        F.col("cust_id"),
         F.col("customer_name"),
         F.col("segment")
     )
@@ -320,3 +315,4 @@ for t in tables:
 
 print("=" * 70)
 print(f"Total tables: {len(tables)}")
+

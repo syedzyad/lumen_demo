@@ -10,7 +10,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install xlrd openpyxl
+# %pip install xlrd openpyxl
 
 # COMMAND ----------
 
@@ -23,7 +23,7 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
-spark.sql("CREATE CATALOG IF NOT EXISTS dev_bronze")
+spark.sql("CREATE CATALOG IF NOT EXISTS dev_bronze MANAGED LOCATION 's3://databricks-workspace-stack-9a61f-bucket/unity-catalog/6483314808213883/zyad_demo'")
 spark.sql("USE CATALOG dev_bronze")
 spark.sql("CREATE SCHEMA IF NOT EXISTS raw")
 spark.sql("USE SCHEMA raw")

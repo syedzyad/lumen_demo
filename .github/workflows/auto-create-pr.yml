@@ -1,0 +1,112 @@
+name: Auto Create PR on Feature Branch Push
+
+on:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  create-pull-request:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed_files
+        run: |
+          FILES=$(git diff --name-only origin/main..HEAD | tr '\n' ', ' | sed 's/,$//')
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+
+      - name: Determine notebook changes
+        id: notebook_info
+        run: |
+          CHANGED=$(git diff --name-only origin/main..HEAD)
+          NOTEBOOKS=""
+          if echo "$CHANGED" | grep -q "bronze_ingestion"; then
+            NOTEBOOKS="${NOTEBOOKS}- bronze_ingestion.py (Bronze Layer)\n"
+          fi
+          if echo "$CHANGED" | grep -q "silver_transformation"; then
+            NOTEBOOKS="${NOTEBOOKS}- silver_transformation.py (Silver Layer)\n"
+          fi
+          if echo "$CHANGED" | grep -q "gold_aggregations"; then
+            NOTEBOOKS="${NOTEBOOKS}- gold_aggregations.py (Gold Layer)\n"
+          fi
+          if [ -z "$NOTEBOOKS" ]; then
+            NOTEBOOKS="- Other files modified\n"
+          fi
+          echo "notebooks<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$NOTEBOOKS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Check if PR already exists
+        id: check_pr
+        run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "pr_exists=true" >> $GITHUB_OUTPUT
+            echo "pr_number=$EXISTING_PR" >> $GITHUB_OUTPUT
+          else
+            echo "pr_exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Pull Request
+        if: steps.check_pr.outputs.pr_exists == 'false'
+        run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          AUTHOR=$(git log -1 --pretty=format:'%an')
+          COMMIT_MSG=$(git log -1 --pretty=format:'%s')
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+
+          PR_TITLE="[Auto PR] ${COMMIT_MSG}"
+
+          PR_BODY="## Automated Pull Request
+
+          **Branch:** \`${BRANCH_NAME}\`
+          **Author:** ${AUTHOR}
+          **Created:** ${TIMESTAMP}
+
+          ### Notebooks Modified
+          $(echo -e '${{ steps.notebook_info.outputs.notebooks }}')
+
+          ### Changed Files
+          \`${{ steps.changed_files.outputs.files }}\`
+
+          ### Pipeline Impact
+          This change affects the Medallion Architecture Pipeline:
+          \`bronze_ingestion -> silver_transformation -> gold_aggregations\`
+
+          ### Review Checklist
+          - [ ] Code follows existing notebook patterns
+          - [ ] No breaking changes to downstream tables
+          - [ ] Transformations validated against silver/gold schema
+          - [ ] Admin approval granted
+
+          ---
+          *This PR was automatically created by the CI/CD pipeline.*"
+
+          gh pr create \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --base main \
+            --head "$BRANCH_NAME"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update existing PR with comment
+        if: steps.check_pr.outputs.pr_exists == 'true'
+        run: |
+          PR_NUMBER=${{ steps.check_pr.outputs.pr_number }}
+          COMMIT_MSG=$(git log -1 --pretty=format:'%s')
+          gh pr comment "$PR_NUMBER" --body "New commit pushed: ${COMMIT_MSG} | Files: ${{ steps.changed_files.outputs.files }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -10,11 +10,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install xlrd openpyxl
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
+# MAGIC %pip install xlrd openpyxl --quiet
 
 # COMMAND ----------
 

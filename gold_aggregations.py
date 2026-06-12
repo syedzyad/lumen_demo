@@ -1,3 +1,4 @@
+# New Aggregation: Discount Impact Analysis by Segment
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Gold Layer - Business Aggregations for Reporting
